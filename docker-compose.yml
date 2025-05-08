@@ -1,4 +1,3 @@
-version: "3.9"
 
 services:
   zookeeper:
@@ -13,7 +12,8 @@ services:
   broker-1:
     image: confluentinc/cp-kafka:7.0.1
     container_name: broker-1
-    depends_on: [zookeeper]
+    depends_on:
+      - zookeeper
     ports:
       - "9092:9092"
     environment:
@@ -21,13 +21,14 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_LISTENERS: PLAINTEXT://broker-1:29092,PLAINTEXT_HOST://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker-1:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker-1:29092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
   broker-2:
     image: confluentinc/cp-kafka:7.0.1
     container_name: broker-2
-    depends_on: [zookeeper]
+    depends_on:
+      - zookeeper
     ports:
       - "9093:9093"
     environment:
@@ -35,37 +36,67 @@ services:
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_LISTENERS: PLAINTEXT://broker-2:29093,PLAINTEXT_HOST://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker-2:29093,PLAINTEXT_HOST://localhost:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://broker-2:29093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
-    depends_on: [broker-1]
+    depends_on:
+      - broker-1
+      - broker-2
     ports:
       - "8080:8080"
     environment:
-      KAFKA_CLUSTERS_0_NAME: lab5-cluster
+      KAFKA_CLUSTERS_0_NAME: lab6-cluster
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker-1:29092,broker-2:29093
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+
+  minio:
+    image: bitnami/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./minio_data:/data
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=adminadmin!!
+      - MINIO_DEFAULT_BUCKETS=default
 
   producer:
     build: ./producer
     container_name: producer
-    depends_on: [broker-1]
+    depends_on:
+      - broker-1
+      - broker-2
     environment:
-      BOOTSTRAP_SERVERS: broker-1:29092
+      BOOTSTRAP_SERVERS: "broker-1:29092,broker-2:29093"
 
   consumer1:
     build: ./consumer1
     container_name: consumer1
-    depends_on: [broker-1]
+    depends_on:
+      - broker-1
+      - minio
     environment:
-      BOOTSTRAP_SERVERS: broker-1:29092
+      BOOTSTRAP_SERVERS: "broker-1:29092"
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: adminadmin!!
+    volumes:
+      - ./csvs:/app/csvs
 
   consumer2:
     build: ./consumer2
     container_name: consumer2
-    depends_on: [broker-1]
+    depends_on:
+      - broker-1
+      - minio
     environment:
-      BOOTSTRAP_SERVERS: broker-1:29092
+      BOOTSTRAP_SERVERS: "broker-1:29092"
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: adminadmin!!
+    volumes:
+      - ./csvs:/app/csvs
